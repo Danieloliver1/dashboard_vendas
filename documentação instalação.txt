@@ -1,0 +1,242 @@
+
+ter o python instalado
+
+criar um ambiente virtual 
+    python -m venv venv
+    .\venv\Scripts/activate    # ativar o ambiente virtual
+
+bibliotecas para instalar 
+pip install pandas
+pip install requests 
+pip install plotly
+pip install streamlit
+pip install openpyxl # para o excel
+
+O Streamlit é uma biblioteca em Python que permite a criação e compartilhamento de aplicativos web, com a vantagem de ser fácil de utilizar, sem a necessidade de conhecer ferramentas de front-end ou de deploy de aplicações.
+
+Neste curso, vamos utilizar o Streamlit para construir um dashboard de vendas, mas esse não é o único tipo de projeto que podemos criar com essa ferramenta. Na seção "Galeria" do site oficial do Streamlit, é possível visualizar diversos exemplos de aplicações que podem ser construídas com o Streamlit.
+
+
+Documentação do streamlit
+https://docs.streamlit.io/develop/api-reference
+
+
+
+
+
+
+
+
+
+
+
+
+# exemplos
+
+
+
+import streamlit as st
+import requests
+import pandas as pd
+import plotly.express as px
+
+# Colocando esta configuração por padrão no navegador
+# Turn on to make this app occupy the entire width of the screen
+st.set_page_config(layout='wide')
+
+
+def formata_numero(valor, prefixo=''):
+    for unidade in ['', 'mil', 'milhões']:
+        if valor < 1000:
+            return f'{prefixo} {valor:.2f} {unidade}'
+        valor /= 1000
+    return f'{prefixo} {valor:.2f} {unidade}'  # Caso valor seja muito grande
+
+
+st.title('DASHBOARD DE VENDAS :shopping_trolley:')
+st.write('sara')
+
+# Pegando endereço da API
+url = 'https://labdados.com/produtos'
+
+response = requests.get(url)
+
+# transformando para json e depois o json é transformado em um dataframe
+dados = pd.DataFrame.from_dict(response.json())
+
+# alterando o tipo do campus
+dados['Data da Compra'] = pd.to_datetime(
+    dados['Data da Compra'], format='%d/%m/%Y')
+
+# Tabelas
+receita_estados = dados.groupby('Local da compra')[['Preço']].sum()
+receita_estados = dados.drop_duplicates(subset='Local da compra')[['Local da compra', 'lat', 'lon']].merge(
+    receita_estados, left_on='Local da compra', right_index=True).sort_values('Preço', ascending=False)
+
+receita_mensal = dados.set_index('Data da Compra').groupby(
+    pd.Grouper(freq='M'))['Preço'].sum().reset_index()
+receita_mensal['Ano'] = receita_mensal['Data da Compra'].dt.year
+receita_mensal['Mes'] = receita_mensal['Data da Compra'].dt.month_name()
+
+receita_categorias = dados.groupby('Categoria do Produto')[
+    ['Preço']].sum().sort_values('Preço', ascending=False)
+
+# Tabelas de quantidades de vendas
+
+
+
+# Tabelas vendedores
+vedendores = pd.DataFrame(dados.groupby('Vendedor')['Preço'].agg(['sum','count']))
+
+
+
+# Grácifos
+
+# gráfico de mapa
+fig_mapa_receita = px.scatter_geo(receita_estados,
+                                  lat='lat',
+                                  lon='lon',
+                                  scope='south america',
+                                  size='Preço',
+                                  template='seaborn',
+                                  hover_name='Local da compra',
+                                  hover_data={'lat': False, 'lon': False},
+                                  title='Receita por estado',
+                                  )
+
+# grafico de linha
+fig_receita_mensal = px.line(receita_mensal,
+                             x='Mes',
+                             y='Preço',
+                             color='Ano',
+                             template='seaborn',
+                             title='Receita mensal',
+                             markers=True,
+                             range_y=(0, receita_mensal.max()),
+                             line_dash='Ano'
+                             )
+
+fig_receita_mensal.update_layout(yaxis_title='Receita mensal')
+
+# Gráfico de barra
+fig_receita_estados = px.bar(receita_estados.head(),
+                             x='Local da compra',
+                             y='Preço',
+                             text_auto=True,
+                             title='Top estados (receita)')
+
+fig_receita_estados.update_layout(yaxis_title='Receita')
+
+fig_receita_categorias = px.bar(receita_categorias,
+                                text_auto=True,
+                                title='Receita por categoria')
+
+fig_receita_categorias.update_layout(yaxis_title='Receita')
+
+
+# Visualização no streamlit
+aba1, aba2, aba3 = st.tabs(['Receita', 'Quantidade de vendas', 'Vendedores'])
+
+
+
+#col1, col2 = st.columns(2)  # variaveis que vão amazenar as colunas
+
+# métodos de fazer
+
+# método 01
+# col1.metric('Receita', formata_numero(dados['Preço'].sum(), 'R$'))
+# col2.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+# col3.metric(label="Temperature", value="70 °F", delta="1.2 °F")
+
+# método 02
+# with col1:   # utilizaremos a cláusula with. Essa cláusula nos permite acessar cada coluna e inserir elementos.
+#     st.metric('Receita', formata_numero(dados['Preço'].sum(), 'R$'))
+# with col2:
+#     st.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+# with col3:
+#     st.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+# Visualização no streamlit
+
+
+with aba1:
+    coluna1, coluna2 = st.columns(2)
+    with coluna1:
+        st.metric('Receita', formata_numero(dados['Preço'].sum(), 'R$'))
+        st.plotly_chart(fig_mapa_receita, use_container_width=True)
+        st.plotly_chart(fig_receita_estados, use_container_width=True)
+
+    with coluna2:
+        st.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+        st.plotly_chart(fig_receita_mensal, use_container_width=True)
+        st.plotly_chart(fig_receita_categorias, use_container_width=True)
+
+with aba2:
+    coluna1, coluna2 = st.columns(2)
+    with coluna1:
+        st.metric('Receita', formata_numero(dados['Preço'].sum(), 'R$'))
+
+    with coluna2:
+        st.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+
+
+with aba3:
+    qtd_vendedores = st.number_input('Quantidade de vedendores',2, 10, 5)
+    coluna1, coluna2 = st.columns(2)
+    with coluna1:
+        st.metric('Receita', formata_numero(dados['Preço'].sum(), 'R$'))
+
+    with coluna2:
+        st.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+
+
+# st.dataframe(dados)
+
+
+altair                    5.3.0
+attrs                     23.2.0
+blinker                   1.8.2
+cachetools                5.3.3
+certifi                   2024.6.2
+charset-normalizer        3.3.2
+click                     8.1.7
+colorama                  0.4.6
+et-xmlfile                1.1.0
+gitdb                     4.0.11
+GitPython                 3.1.43
+idna                      3.7
+Jinja2                    3.1.4
+jsonschema                4.22.0
+jsonschema-specifications 2023.12.1
+markdown-it-py            3.0.0
+MarkupSafe                2.1.5
+mdurl                     0.1.2
+numpy                     1.26.4
+openpyxl                  3.1.4
+packaging                 24.0
+pandas                    2.2.2
+pillow                    10.3.0
+pip                       24.0
+plotly                    5.22.0
+protobuf                  4.25.3
+pyarrow                   16.1.0
+pydeck                    0.9.1
+Pygments                  2.18.0
+python-dateutil           2.9.0.post0
+pytz                      2024.1
+referencing               0.35.1
+requests                  2.32.3
+rich                      13.7.1
+rpds-py                   0.18.1
+six                       1.16.0
+smmap                     5.0.1
+streamlit                 1.35.0
+tenacity                  8.3.0
+toml                      0.10.2
+toolz                     0.12.1
+tornado                   6.4.1
+typing_extensions         4.12.2
+tzdata                    2024.1
+urllib3                   2.2.1
+watchdog                  4.0.1
+
+
